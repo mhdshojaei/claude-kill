@@ -1,6 +1,6 @@
 {
   "name": "Claude Kill Switch",
-  "description": "Deny all Claude network when WireGuard exit is not Istanbul. Toggled by claude-istanbul-killswitch.",
+  "description": "Deny Claude + Brave network when WireGuard exit is not Istanbul. Toggled by claude-istanbul-killswitch.",
   "rules": [
     {
       "action": "deny",
@@ -46,6 +46,51 @@
       "remote": "any",
       "ports": "any",
       "notes": "Claude Plugin — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Brave main — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Brave Browser.app/Contents/Frameworks/Brave Browser Framework.framework/Versions/Current/Helpers/Brave Browser Helper.app/Contents/MacOS/Brave Browser Helper",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Brave Helper — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Brave Browser.app/Contents/Frameworks/Brave Browser Framework.framework/Versions/Current/Helpers/Brave Browser Helper (Renderer).app/Contents/MacOS/Brave Browser Helper (Renderer)",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Brave Renderer — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Brave Browser.app/Contents/Frameworks/Brave Browser Framework.framework/Versions/Current/Helpers/Brave Browser Helper (GPU).app/Contents/MacOS/Brave Browser Helper (GPU)",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Brave GPU — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Brave Browser.app/Contents/Frameworks/Brave Browser Framework.framework/Versions/Current/Helpers/Brave Browser Helper (Alerts).app/Contents/MacOS/Brave Browser Helper (Alerts)",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Brave Alerts — kill switch"
     }
   ]
 }

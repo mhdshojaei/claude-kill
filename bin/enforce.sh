@@ -93,14 +93,20 @@ exit_is_istanbul() {
   return 0
 }
 
-quit_claude() {
-  [[ "${QUIT_CLAUDE_WHEN_UNSAFE}" == "1" ]] || return 0
-  if /usr/bin/pgrep -f "/Applications/Claude.app/" >/dev/null 2>&1; then
-    /usr/bin/osascript -e 'tell application "Claude" to quit' 2>/dev/null || true
+quit_app() {
+  local app_name="$1"   # AppleScript name
+  local path_match="$2" # pgrep/pkill path fragment
+  if /usr/bin/pgrep -f "${path_match}" >/dev/null 2>&1; then
+    /usr/bin/osascript -e "tell application \"${app_name}\" to quit" 2>/dev/null || true
     /bin/sleep 1
-    /usr/bin/pkill -f "/Applications/Claude.app/" 2>/dev/null || true
-    log "Quit Claude processes"
+    /usr/bin/pkill -f "${path_match}" 2>/dev/null || true
+    log "Quit ${app_name}"
   fi
+}
+
+quit_protected_apps() {
+  [[ "${QUIT_CLAUDE_WHEN_UNSAFE:-1}" == "1" ]] && quit_app "Claude" "/Applications/Claude.app/"
+  [[ "${QUIT_BRAVE_WHEN_UNSAFE:-1}" == "1" ]] && quit_app "Brave Browser" "/Applications/Brave Browser.app/"
 }
 
 set_ls_block() {
@@ -121,9 +127,9 @@ if ! wg_connected; then
   log "UNSAFE: WireGuard '${WG_TUNNEL_NAME}' not connected"
   print -n "unsafe" > "${STATE_FILE}"
   set_ls_block 1
-  quit_claude
+  quit_protected_apps
   if [[ "${previous_state}" != "unsafe" ]]; then
-    notify "Claude Kill Switch" "WireGuard قطع است — Claude مسدود شد"
+    notify "Istanbul Kill Switch" "WireGuard قطع است — Claude/Brave مسدود شدند"
   fi
   exit 0
 fi
@@ -134,7 +140,7 @@ if geo="$(exit_is_istanbul)"; then
   print -n "safe" > "${STATE_FILE}"
   set_ls_block 0
   if [[ "${previous_state}" != "safe" ]]; then
-    notify "Claude Kill Switch" "خروجی استانبول تأیید شد — Claude آزاد است"
+    notify "Istanbul Kill Switch" "خروجی استانبول تأیید شد — Claude/Brave آزادند"
   fi
   exit 0
 fi
@@ -142,8 +148,8 @@ fi
 log "UNSAFE: WG up but exit is not Istanbul (or geo check failed)"
 print -n "unsafe" > "${STATE_FILE}"
 set_ls_block 1
-quit_claude
+quit_protected_apps
 if [[ "${previous_state}" != "unsafe" ]]; then
-  notify "Claude Kill Switch" "IP استانبول نیست — Claude مسدود شد"
+  notify "Istanbul Kill Switch" "IP استانبول نیست — Claude/Brave مسدود شدند"
 fi
 exit 0

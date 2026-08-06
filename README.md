@@ -1,11 +1,11 @@
 # Claude ↔ Istanbul Kill Switch
 
-بلاک کامل ترافیک **Claude** روی macOS مگر وقتی:
+بلاک کامل ترافیک **Claude** و **Brave Browser** روی macOS مگر وقتی:
 
 1. تونل **WireGuard** وصل باشد، و
 2. IP خروجی عمومی واقعاً **Istanbul / TR** باشد (نه فقط سرور میانی ایران).
 
-اگر WireGuard قطع باشد، یا VPN بالا باشد ولی خروجی استانبول نباشد → Claude بسته می‌شود و (اختیاری) با **Little Snitch** شبکهٔ آن Deny می‌شود.
+اگر WireGuard قطع باشد، یا VPN بالا باشد ولی خروجی استانبول نباشد → Claude و Brave بسته می‌شوند و (اختیاری) با **Little Snitch** شبکه‌شان Deny می‌شود.
 
 > نیازها: macOS · WireGuard.app · (پیشنهادی) Little Snitch 6+ · دسترسی ادمین برای sudoers
 
@@ -41,7 +41,8 @@ tail -f ~/Library/Logs/claude-istanbul-killswitch.log
 | ابزار | چرا |
 |---|---|
 | [WireGuard](https://www.wireguard.com/install/) | تونل VPN |
-| [Claude.app](https://claude.ai/download) | اپی که باید محافظت شود |
+| [Claude.app](https://claude.ai/download) | اپ محافظت‌شده |
+| [Brave Browser](https://brave.com/) | مرورگر محافظت‌شده |
 | [Little Snitch 6+](https://www.obdev.at/products/littlesnitch/) | بلاک سخت شبکه (پیشنهادی) |
 | `curl` + `python3` | چک IP (روی macOS معمولاً هست) |
 
@@ -64,6 +65,7 @@ scutil --nc list | grep -i wireguard
 | `REQUIRE_CITY` | شهر خروجی | `Istanbul` |
 | `REQUIRE_ASNS` | ASN مجاز (خالی = چک نشود) | `AS44382` |
 | `QUIT_CLAUDE_WHEN_UNSAFE` | بستن Claude وقتی unsafe | `1` |
+| `QUIT_BRAVE_WHEN_UNSAFE` | بستن Brave وقتی unsafe | `1` |
 | `USE_LITTLE_SNITCH` | روشن/خاموش کردن Rule Group | `1` |
 | `LS_RULE_GROUP` | نام گروه در Little Snitch | `Claude Kill Switch` |
 
@@ -120,7 +122,7 @@ sudo -n "$LS" rulegroup
 
 ## تست صحت
 
-1. WireGuard را **Disconnect** کن → نوتیف «قطع است» · Claude بسته می‌شود · گروه LS روشن می‌شود.
+1. WireGuard را **Disconnect** کن → نوتیف «قطع است» · Claude و Brave بسته می‌شوند · گروه LS روشن می‌شود.
 2. دوباره وصل کن با خروجی استانبول → نوتیف «آزاد است» · گروه LS خاموش می‌شود.
 3. وضعیت:
 
