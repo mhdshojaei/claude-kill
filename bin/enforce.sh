@@ -80,22 +80,32 @@ if isinstance(d, dict):
 
 ip = d.get("ip") or d.get("query") or d.get("ipAddress") or ""
 city = d.get("city") or d.get("cityName") or ""
-country = d.get("country") or d.get("countryCode") or d.get("country_code") or ""
-# ipapi.co uses country_code; some return full name in country
-if len(str(country)) > 2 and d.get("country_code"):
-    country = d.get("country_code")
+# Prefer ISO country codes over localized names (e.g. Türkiye)
+country = (
+    d.get("countryCode")
+    or d.get("country_code")
+    or d.get("country_iso")
+    or d.get("country")
+    or ""
+)
+if len(str(country)) != 2:
+    # last resort: keep as-is; caller compares uppercase
+    country = d.get("country") or country
 org = d.get("org") or d.get("as") or d.get("asn") or d.get("organization") or ""
 if isinstance(org, dict):
     org = org.get("asn") or org.get("name") or ""
-asn_m = re.search(r"AS\d+", str(org), re.I)
+# ifconfig.co uses separate asn field like "AS6939" (often inaccurate) —
+# prefer "as"/"org" text when present.
+asn_src = str(d.get("as") or d.get("org") or org or d.get("asn") or "")
+asn_m = re.search(r"AS\d+", asn_src, re.I)
 asn = asn_m.group(0).upper() if asn_m else ""
-# ip-api: "as": "AS44382 Fiba..."
-if not asn and d.get("as"):
-    asn_m = re.search(r"AS\d+", str(d.get("as")), re.I)
-    asn = asn_m.group(0).upper() if asn_m else ""
 
 if not ip or not city or not country:
     sys.exit(1)
+# Prefer 2-letter country codes when we have them
+cc = d.get("countryCode") or d.get("country_code") or d.get("country_iso")
+if cc and len(str(cc)) == 2:
+    country = str(cc)
 print(f"{ip}|{city}|{country}|{asn}")
 PY
 }
@@ -107,10 +117,9 @@ PY
 exit_check() {
   local body norm rc
   local -a urls=(
+    "http://ip-api.com/json/?fields=status,message,country,countryCode,city,query,as"
     "https://ipinfo.io/json"
     "https://ipapi.co/json/"
-    "http://ip-api.com/json/?fields=status,message,country,countryCode,city,query,as"
-    "https://ifconfig.co/json"
   )
   local url
   local saw_ratelimit=0
