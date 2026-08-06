@@ -1,0 +1,51 @@
+{
+  "name": "Claude Kill Switch",
+  "description": "Deny all Claude network when WireGuard exit is not Istanbul. Toggled by claude-istanbul-killswitch.",
+  "rules": [
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Claude.app/Contents/MacOS/Claude",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Claude main — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Claude.app/Contents/Frameworks/Claude Helper.app/Contents/MacOS/Claude Helper",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Claude Helper — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Claude.app/Contents/Frameworks/Claude Helper (Renderer).app/Contents/MacOS/Claude Helper (Renderer)",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Claude Renderer — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Claude.app/Contents/Frameworks/Claude Helper (GPU).app/Contents/MacOS/Claude Helper (GPU)",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Claude GPU — kill switch"
+    },
+    {
+      "action": "deny",
+      "priority": "high",
+      "direction": "outgoing",
+      "process": "/Applications/Claude.app/Contents/Frameworks/Claude Helper (Plugin).app/Contents/MacOS/Claude Helper (Plugin)",
+      "remote": "any",
+      "ports": "any",
+      "notes": "Claude Plugin — kill switch"
+    }
+  ]
+}

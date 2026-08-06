@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Template only — bin/install.sh generates the real plist with absolute paths.
+  Label: com.claude-istanbul-killswitch
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.claude-istanbul-killswitch</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/zsh</string>
+    <string>__REPO__/bin/enforce.sh</string>
+  </array>
+  <key>StartInterval</key>
+  <integer>10</integer>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/claude-istanbul-killswitch.stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/claude-istanbul-killswitch.stderr.log</string>
+</dict>
+</plist>
