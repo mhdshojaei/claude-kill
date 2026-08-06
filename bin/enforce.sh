@@ -51,10 +51,11 @@ curl_via() {
   local url="$1"
   local iface
   iface="$(wg_interface)"
+  # Bypass broken local HTTP proxies (seen as 127.0.0.1:xxxxx failures)
   if [[ -n "${iface}" ]]; then
-    /usr/bin/curl -4 -sS --max-time 5 --interface "${iface}" "${url}" 2>/dev/null && return 0
+    /usr/bin/curl -4 -sS --max-time 5 --noproxy '*' --interface "${iface}" "${url}" 2>/dev/null && return 0
   fi
-  /usr/bin/curl -4 -sS --max-time 5 "${url}" 2>/dev/null || true
+  /usr/bin/curl -4 -sS --max-time 5 --noproxy '*' "${url}" 2>/dev/null || true
 }
 
 # Normalize provider JSON → "ip|city|country|asn" or empty on failure/rate-limit
@@ -71,9 +72,11 @@ except Exception:
 
 # rate-limit / error payloads
 if isinstance(d, dict):
-    if d.get("status") in (429, "fail", "error") or "error" in d and not d.get("ip") and not d.get("query"):
+    if d.get("success") is False:
+        sys.exit(2)
+    if d.get("status") in (429, "fail", "error") or ("error" in d and not d.get("ip") and not d.get("query")):
         # ip-api uses status=fail; ipinfo 429 has status:429
-        if d.get("status") == 429 or (isinstance(d.get("error"), dict)):
+        if d.get("status") == 429 or (isinstance(d.get("error"), dict)) or d.get("error") is True:
             sys.exit(2)
         if d.get("status") == "fail":
             sys.exit(2)
@@ -85,20 +88,27 @@ country = (
     d.get("countryCode")
     or d.get("country_code")
     or d.get("country_iso")
-    or d.get("country")
     or ""
 )
-if len(str(country)) != 2:
-    # last resort: keep as-is; caller compares uppercase
-    country = d.get("country") or country
-org = d.get("org") or d.get("as") or d.get("asn") or d.get("organization") or ""
+if not country:
+    c = d.get("country") or ""
+    country = c if len(str(c)) == 2 else c
+org = d.get("org") or d.get("as") or d.get("organization") or d.get("organization_name") or ""
 if isinstance(org, dict):
-    org = org.get("asn") or org.get("name") or ""
-# ifconfig.co uses separate asn field like "AS6939" (often inaccurate) —
-# prefer "as"/"org" text when present.
-asn_src = str(d.get("as") or d.get("org") or org or d.get("asn") or "")
+    org = org.get("asn") or org.get("name") or org.get("org") or ""
+conn = d.get("connection") if isinstance(d.get("connection"), dict) else {}
+asn_src = str(
+    d.get("as")
+    or org
+    or d.get("asn")
+    or (f"AS{conn['asn']}" if conn.get("asn") else "")
+    or conn.get("org")
+    or ""
+)
 asn_m = re.search(r"AS\d+", asn_src, re.I)
 asn = asn_m.group(0).upper() if asn_m else ""
+if not asn and str(d.get("asn","")).isdigit():
+    asn = f"AS{d.get('asn')}"
 
 if not ip or not city or not country:
     sys.exit(1)
@@ -106,6 +116,8 @@ if not ip or not city or not country:
 cc = d.get("countryCode") or d.get("country_code") or d.get("country_iso")
 if cc and len(str(cc)) == 2:
     country = str(cc)
+elif len(str(country)) != 2 and d.get("country") and len(str(d.get("country"))) == 2:
+    country = str(d.get("country"))
 print(f"{ip}|{city}|{country}|{asn}")
 PY
 }
@@ -117,6 +129,8 @@ PY
 exit_check() {
   local body norm rc
   local -a urls=(
+    "https://ipwho.is/"
+    "https://get.geojs.io/v1/ip/geo.json"
     "http://ip-api.com/json/?fields=status,message,country,countryCode,city,query,as"
     "https://ipinfo.io/json"
     "https://ipapi.co/json/"
