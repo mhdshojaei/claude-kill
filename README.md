@@ -14,7 +14,7 @@
 ## نصب سریع روی سیستم جدید
 
 ```bash
-git clone https://github.com/OWNER/claude-istanbul-killswitch.git
+git clone https://github.com/mhdshojaei/claude-kill.git
 cd claude-istanbul-killswitch
 chmod +x bin/*.sh
 ./bin/install.sh
