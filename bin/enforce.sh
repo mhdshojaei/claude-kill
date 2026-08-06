@@ -59,10 +59,11 @@ curl_via() {
 }
 
 # Normalize provider JSON → "ip|city|country|asn" or empty on failure/rate-limit
+# NOTE: must take JSON as argv — a heredoc would steal stdin from a pipe.
 parse_geo() {
-  /usr/bin/python3 - <<'PY'
+  /usr/bin/python3 -c '
 import json, re, sys
-raw = sys.stdin.read().strip()
+raw = (sys.argv[1] if len(sys.argv) > 1 else "").strip()
 if not raw:
     sys.exit(1)
 try:
@@ -70,26 +71,18 @@ try:
 except Exception:
     sys.exit(1)
 
-# rate-limit / error payloads
 if isinstance(d, dict):
     if d.get("success") is False:
         sys.exit(2)
     if d.get("status") in (429, "fail", "error") or ("error" in d and not d.get("ip") and not d.get("query")):
-        # ip-api uses status=fail; ipinfo 429 has status:429
-        if d.get("status") == 429 or (isinstance(d.get("error"), dict)) or d.get("error") is True:
+        if d.get("status") == 429 or isinstance(d.get("error"), dict) or d.get("error") is True:
             sys.exit(2)
         if d.get("status") == "fail":
             sys.exit(2)
 
 ip = d.get("ip") or d.get("query") or d.get("ipAddress") or ""
 city = d.get("city") or d.get("cityName") or ""
-# Prefer ISO country codes over localized names (e.g. Türkiye)
-country = (
-    d.get("countryCode")
-    or d.get("country_code")
-    or d.get("country_iso")
-    or ""
-)
+country = d.get("countryCode") or d.get("country_code") or d.get("country_iso") or ""
 if not country:
     c = d.get("country") or ""
     country = c if len(str(c)) == 2 else c
@@ -101,25 +94,23 @@ asn_src = str(
     d.get("as")
     or org
     or d.get("asn")
-    or (f"AS{conn['asn']}" if conn.get("asn") else "")
+    or (("AS" + str(conn["asn"])) if conn.get("asn") else "")
     or conn.get("org")
     or ""
 )
 asn_m = re.search(r"AS\d+", asn_src, re.I)
 asn = asn_m.group(0).upper() if asn_m else ""
-if not asn and str(d.get("asn","")).isdigit():
-    asn = f"AS{d.get('asn')}"
-
+if not asn and str(d.get("asn", "")).isdigit():
+    asn = "AS" + str(d.get("asn"))
 if not ip or not city or not country:
     sys.exit(1)
-# Prefer 2-letter country codes when we have them
 cc = d.get("countryCode") or d.get("country_code") or d.get("country_iso")
 if cc and len(str(cc)) == 2:
     country = str(cc)
 elif len(str(country)) != 2 and d.get("country") and len(str(d.get("country"))) == 2:
     country = str(d.get("country"))
 print(f"{ip}|{city}|{country}|{asn}")
-PY
+' "$1"
 }
 
 # Returns:
@@ -140,7 +131,7 @@ exit_check() {
   for url in "${urls[@]}"; do
     body="$(curl_via "${url}")"
     [[ -n "${body}" ]] || continue
-    norm="$(print -- "${body}" | parse_geo)" && rc=0 || rc=$?
+    norm="$(parse_geo "${body}")" && rc=0 || rc=$?
     if [[ "${rc}" -eq 2 ]]; then
       saw_ratelimit=1
       continue
