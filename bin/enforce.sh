@@ -238,21 +238,18 @@ mark_unsafe() {
 previous_state="unknown"
 [[ -f "${STATE_FILE}" ]] && previous_state="$(/bin/cat "${STATE_FILE}")"
 
-if ! wg_connected; then
-  log "UNSAFE: WireGuard '${WG_TUNNEL_NAME}' not connected"
-  mark_unsafe
-  if [[ "${previous_state}" != "unsafe" ]]; then
-    notify "Istanbul Kill Switch" "WireGuard قطع است — Claude/Brave مسدود شدند"
-  fi
-  exit 0
-fi
-
+# Primary rule: exit IP must be Istanbul. WG status alone is not enough to kill —
+# scutil can show Disconnected while routing still exits via Istanbul.
 geo=""
 check_rc=0
 geo="$(exit_check)" && check_rc=0 || check_rc=$?
 
 if [[ "${check_rc}" -eq 0 ]]; then
-  log "SAFE: ${geo}"
+  if wg_connected; then
+    log "SAFE: ${geo}"
+  else
+    log "SAFE: ${geo} (WireGuard '${WG_TUNNEL_NAME}' not connected in scutil, but exit IP is Istanbul)"
+  fi
   mark_safe "${geo}"
   if [[ "${previous_state}" != "safe" ]]; then
     notify "Istanbul Kill Switch" "خروجی استانبول تأیید شد — Claude/Brave آزادند"
@@ -261,14 +258,18 @@ if [[ "${check_rc}" -eq 0 ]]; then
 fi
 
 if [[ "${check_rc}" -eq 2 ]]; then
-  # Geo APIs unavailable (e.g. ipinfo 429). Keep last good result briefly while WG is up.
+  # Geo APIs unavailable. Trust recent Istanbul cache regardless of WG scutil state.
   if cache_ok_fresh; then
     cached="$(/bin/cat "${CACHE_FILE}" 2>/dev/null || true)"
     log "SAFE(cache): geo API unavailable; trusting last OK (${cached})"
     mark_safe "${cached:-cached}"
     exit 0
   fi
-  log "UNSAFE: geo API unavailable and no fresh Istanbul cache"
+  if ! wg_connected; then
+    log "UNSAFE: WireGuard '${WG_TUNNEL_NAME}' not connected and geo check unavailable"
+  else
+    log "UNSAFE: geo API unavailable and no fresh Istanbul cache"
+  fi
   mark_unsafe
   if [[ "${previous_state}" != "unsafe" ]]; then
     notify "Istanbul Kill Switch" "چک IP موقتاً از کار افتاد — مسدود شد"
@@ -276,8 +277,12 @@ if [[ "${check_rc}" -eq 2 ]]; then
   exit 0
 fi
 
-# confirmed mismatch
-log "UNSAFE: ${geo}"
+# confirmed NOT Istanbul
+if ! wg_connected; then
+  log "UNSAFE: ${geo} (WireGuard '${WG_TUNNEL_NAME}' not connected)"
+else
+  log "UNSAFE: ${geo}"
+fi
 mark_unsafe
 if [[ "${previous_state}" != "unsafe" ]]; then
   notify "Istanbul Kill Switch" "IP استانبول نیست — Claude/Brave مسدود شدند"
