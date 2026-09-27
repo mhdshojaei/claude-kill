@@ -248,10 +248,19 @@ cache_ok_fresh() {
 
 quit_app() {
   local app_name="$1"
-  # Check if app is running via System Events to avoid path mismatches
-  if /usr/bin/osascript -e "tell application \"System Events\" to (name of processes) contains \"${app_name}\"" 2>/dev/null | grep -q "true"; then
-    /usr/bin/osascript -e "tell application \"${app_name}\" to quit" 2>/dev/null || true
-    /bin/sleep 1
+  local app_info
+  
+  # lsappinfo is native and does not require Accessibility/AppleScript permissions
+  app_info=$(/usr/bin/lsappinfo info -app "${app_name}" 2>/dev/null)
+  
+  if [[ -n "${app_info}" ]]; then
+    local pid
+    pid=$(echo "${app_info}" | /usr/bin/awk -F= '/pid =/ {print $2}' | /usr/bin/awk '{print $1}')
+    if [[ -n "${pid}" ]]; then
+      /bin/kill -15 "${pid}" 2>/dev/null || true
+      /bin/sleep 1
+      /bin/kill -9 "${pid}" 2>/dev/null || true
+    fi
     /usr/bin/killall "${app_name}" 2>/dev/null || true
     log "Quit ${app_name}"
   fi
