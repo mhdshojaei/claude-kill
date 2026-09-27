@@ -248,18 +248,18 @@ cache_ok_fresh() {
 
 quit_app() {
   local app_name="$1"
-  local path_match="$2"
-  if /usr/bin/pgrep -f "${path_match}" >/dev/null 2>&1; then
+  # Check if app is running via System Events to avoid path mismatches
+  if /usr/bin/osascript -e "tell application \"System Events\" to (name of processes) contains \"${app_name}\"" 2>/dev/null | grep -q "true"; then
     /usr/bin/osascript -e "tell application \"${app_name}\" to quit" 2>/dev/null || true
     /bin/sleep 1
-    /usr/bin/pkill -f "${path_match}" 2>/dev/null || true
+    /usr/bin/killall "${app_name}" 2>/dev/null || true
     log "Quit ${app_name}"
   fi
 }
 
 quit_protected_apps() {
-  [[ "${QUIT_CLAUDE_WHEN_UNSAFE:-1}" == "1" ]] && quit_app "Claude" "/Applications/Claude.app/"
-  [[ "${QUIT_BRAVE_WHEN_UNSAFE:-1}" == "1" ]] && quit_app "Brave Browser" "/Applications/Brave Browser.app/"
+  [[ "${QUIT_CLAUDE_WHEN_UNSAFE:-1}" == "1" ]] && quit_app "Claude"
+  [[ "${QUIT_BRAVE_WHEN_UNSAFE:-1}" == "1" ]] && quit_app "Brave Browser"
 }
 
 set_ls_block() {
