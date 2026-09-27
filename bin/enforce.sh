@@ -296,11 +296,16 @@ check_rc=0
 geo="$(exit_check)" && check_rc=0 || check_rc=$?
 
 if [[ "${check_rc}" -eq 0 ]]; then
-  if wg_connected; then
-    log "SAFE: ${geo}"
-  else
-    log "SAFE: ${geo} (WireGuard '${WG_TUNNEL_NAME}' not connected in scutil, but exit IP verified)"
+  if ! wg_connected; then
+    log "UNSAFE: ${geo} (WireGuard '${WG_TUNNEL_NAME}' not connected in scutil, rejecting despite IP match)"
+    mark_unsafe
+    if [[ "${previous_state}" != "unsafe" ]]; then
+      notify "Kill Switch" "WireGuard disconnected — Claude/Brave blocked"
+    fi
+    exit 0
   fi
+  
+  log "SAFE: ${geo}"
   mark_safe "${geo}"
   if [[ "${previous_state}" != "safe" ]]; then
     notify "Kill Switch" "Safe exit verified (${geo%%|*}) — Claude/Brave allowed"
@@ -309,6 +314,15 @@ if [[ "${check_rc}" -eq 0 ]]; then
 fi
 
 if [[ "${check_rc}" -eq 2 ]]; then
+  if ! wg_connected; then
+    log "UNSAFE: WireGuard '${WG_TUNNEL_NAME}' not connected"
+    mark_unsafe
+    if [[ "${previous_state}" != "unsafe" ]]; then
+      notify "Kill Switch" "WireGuard disconnected — Claude/Brave blocked"
+    fi
+    exit 0
+  fi
+
   # Geo APIs unavailable. Trust recent cache if fresh.
   if cache_ok_fresh; then
     cached="$(/bin/cat "${CACHE_FILE}" 2>/dev/null || true)"
@@ -316,11 +330,8 @@ if [[ "${check_rc}" -eq 2 ]]; then
     mark_safe "${cached:-cached}"
     exit 0
   fi
-  if ! wg_connected; then
-    log "UNSAFE: WireGuard '${WG_TUNNEL_NAME}' not connected and geo check unavailable"
-  else
-    log "UNSAFE: geo API unavailable and no fresh cache"
-  fi
+
+  log "UNSAFE: geo API unavailable and no fresh cache"
   mark_unsafe
   if [[ "${previous_state}" != "unsafe" ]]; then
     notify "Kill Switch" "IP check unavailable — blocked"
