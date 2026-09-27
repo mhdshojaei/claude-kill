@@ -14,8 +14,16 @@ import socket
 PORT = 54321
 PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONFIG_FILE = os.path.join(PROJECT_DIR, "config.env")
-STATE_DIR = os.path.expanduser("~/Library/Application Support/claude-istanbul-killswitch")
-LOG_FILE = os.path.expanduser("~/Library/Logs/claude-istanbul-killswitch.log")
+IS_WINDOWS = sys.platform.startswith("win")
+
+if IS_WINDOWS:
+    APPDATA = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+    STATE_DIR = os.path.join(APPDATA, "ClaudeKillSwitch")
+    LOG_FILE = os.path.join(STATE_DIR, "claude-killswitch.log")
+else:
+    STATE_DIR = os.path.expanduser("~/Library/Application Support/claude-istanbul-killswitch")
+    LOG_FILE = os.path.expanduser("~/Library/Logs/claude-istanbul-killswitch.log")
+
 STATE_FILE = os.path.join(STATE_DIR, "state")
 CACHE_FILE = os.path.join(STATE_DIR, "last_ok")
 
@@ -149,14 +157,23 @@ def get_live_status():
     }
 
 def run_enforce_now():
-    enforce_bin = os.path.join(PROJECT_DIR, "bin", "enforce.sh")
-    if os.path.exists(enforce_bin):
+    if IS_WINDOWS:
+        win_enforce = os.path.join(PROJECT_DIR, "windows", "enforce_windows.py")
         try:
-            res = subprocess.run([enforce_bin], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
+            res = subprocess.run([sys.executable, win_enforce, "--once"],
+                                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
             return {"success": res.returncode == 0, "output": res.stdout + res.stderr}
         except Exception as e:
             return {"success": False, "error": str(e)}
-    return {"success": False, "error": "enforce.sh not found"}
+    else:
+        enforce_bin = os.path.join(PROJECT_DIR, "bin", "enforce.sh")
+        if os.path.exists(enforce_bin):
+            try:
+                res = subprocess.run([enforce_bin], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
+                return {"success": res.returncode == 0, "output": res.stdout + res.stderr}
+            except Exception as e:
+                return {"success": False, "error": str(e)}
+        return {"success": False, "error": "enforce.sh not found"}
 
 HTML_PAGE = """<!DOCTYPE html>
 <html lang="fa" dir="rtl">
