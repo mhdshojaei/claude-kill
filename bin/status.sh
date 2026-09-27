@@ -14,6 +14,10 @@ fi
 source "${CONFIG_FILE}"
 
 print "Tunnel: ${WG_TUNNEL_NAME}"
+print "Allowed Countries: ${REQUIRE_COUNTRIES:-${REQUIRE_COUNTRY:-none}}"
+print "Allowed Cities: ${REQUIRE_CITIES:-${REQUIRE_CITY:-any}}"
+print "Allowed ASNs: ${REQUIRE_ASNS:-any}"
+print "Allowed IPs: ${ALLOWED_IPS:-none}"
 print "scutil: $(/usr/sbin/scutil --nc status "${WG_TUNNEL_NAME}" 2>/dev/null | /usr/bin/head -n 1)"
 iface="$(/usr/sbin/scutil --nc status "${WG_TUNNEL_NAME}" 2>/dev/null | /usr/bin/awk -F' : ' '/InterfaceName/ {print $2; exit}')"
 print "iface: ${iface:-unknown}"

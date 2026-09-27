@@ -33,7 +33,16 @@ log() {
 notify() {
   [[ "${NOTIFY_ON_CHANGE}" == "1" ]] || return 0
   local title="$1" body="$2"
-  /usr/bin/osascript -e "display notification \"${body}\" with title \"${title}\"" 2>/dev/null || true
+  # Pass text via env vars so Persian / quotes don't break osascript or zsh.
+  if NOTIFY_TITLE="${title}" NOTIFY_BODY="${body}" /usr/bin/osascript >/dev/null 2>>"${LOG_FILE}" <<'EOF'
+display notification (system attribute "NOTIFY_BODY") with title (system attribute "NOTIFY_TITLE") sound name "Glass"
+EOF
+  then
+    log "NOTIFY: ${title} — ${body}"
+  else
+    log "WARN: notification failed (${title})"
+    /usr/bin/afplay /System/Library/Sounds/Glass.aiff >/dev/null 2>&1 || true
+  fi
 }
 
 wg_connected() {
@@ -139,46 +148,88 @@ exit_check() {
     if [[ "${rc}" -ne 0 || -z "${norm}" ]]; then
       continue
     fi
-    local ip city country asn
-    ip="${norm%%|*}"; rest="${norm#*|}"
-    city="${rest%%|*}"; rest="${rest#*|}"
-    country="${rest%%|*}"; asn="${rest##*|}"
+    # Check if geo matches allowed rules (supports multiple countries/cities/IPs/ASNs)
+    local check_res
+    check_res="$(/usr/bin/python3 -c '
+import sys, ipaddress
 
-    # normalize city comparisons (İstanbul vs Istanbul)
-    local city_n country_n
-    city_n="$(print -- "${city}" | /usr/bin/iconv -f UTF-8 -t ASCII//TRANSLIT 2>/dev/null | /usr/bin/tr '[:upper:]' '[:lower:]')"
-    city_n="${city_n:-$(print -- "${city}" | /usr/bin/tr '[:upper:]' '[:lower:]')}"
-    country_n="$(print -- "${country}" | /usr/bin/tr '[:lower:]' '[:upper:]')"
-    local want_city want_country
-    want_city="$(print -- "${REQUIRE_CITY}" | /usr/bin/tr '[:upper:]' '[:lower:]')"
-    want_country="$(print -- "${REQUIRE_COUNTRY}" | /usr/bin/tr '[:lower:]' '[:upper:]')"
+norm = sys.argv[1]
+allowed_countries = [c.strip().upper() for c in sys.argv[2].split(",") if c.strip()]
+allowed_cities = [c.strip().lower() for c in sys.argv[3].split(",") if c.strip()]
+allowed_asns = [c.strip().upper() for c in sys.argv[4].split(",") if c.strip()]
+allowed_ips_raw = [c.strip() for c in sys.argv[5].split(",") if c.strip()]
 
-    if [[ "${country_n}" != "${want_country}" ]]; then
-      print -- "mismatch:${norm}"
+parts = norm.split("|")
+if len(parts) < 4:
+    print("mismatch:" + norm)
+    sys.exit(1)
+
+ip, city, country, asn = parts[0], parts[1], parts[2], parts[3]
+city_lower = city.lower()
+country_upper = country.upper()
+asn_upper = asn.upper()
+
+# 1. Check IP direct whitelist (if any specified)
+ip_matched = False
+if allowed_ips_raw:
+    try:
+        cur_ip = ipaddress.ip_address(ip)
+        for target in allowed_ips_raw:
+            try:
+                if "/" in target:
+                    if cur_ip in ipaddress.ip_network(target, strict=False):
+                        ip_matched = True
+                        break
+                else:
+                    if cur_ip == ipaddress.ip_address(target):
+                        ip_matched = True
+                        break
+            except Exception:
+                continue
+    except Exception:
+        pass
+
+# If IP matched whitelist directly, we can treat it as valid
+if ip_matched:
+    print(norm)
+    sys.exit(0)
+
+# 2. Check Country match (if required)
+if allowed_countries:
+    if country_upper not in allowed_countries:
+        print("mismatch:" + norm)
+        sys.exit(1)
+
+# 3. Check City match (only if explicitly specified by user, otherwise ALL cities in allowed countries are accepted)
+if allowed_cities:
+    city_ok = False
+    for req_city in allowed_cities:
+        # handle Istanbul transliteration variants
+        if "istanbul" in req_city and ("istanbul" in city_lower or "i̇stanbul" in city_lower or "stanbul" in city_lower):
+            city_ok = True
+            break
+        if req_city in city_lower or city_lower in req_city:
+            city_ok = True
+            break
+    if not city_ok:
+        print("mismatch:" + norm)
+        sys.exit(1)
+
+# 4. Check ASN match (if required)
+if allowed_asns:
+    if asn_upper not in allowed_asns:
+        print("mismatch:" + norm)
+        sys.exit(1)
+
+print(norm)
+sys.exit(0)
+' "${norm}" "${REQUIRE_COUNTRIES:-${REQUIRE_COUNTRY:-}}" "${REQUIRE_CITIES:-}" "${REQUIRE_ASNS:-}" "${ALLOWED_IPS:-}")" && rc=0 || rc=$?
+
+    if [[ "${rc}" -ne 0 ]]; then
+      print -- "${check_res}"
       return 1
     fi
-    if [[ "${city_n}" != "${want_city}" && "${city_n}" != "istanbul" && "${city_n}" != "i̇stanbul" ]]; then
-      # allow common TR spelling after translit
-      if [[ "${city_n}" != *"stanbul"* ]]; then
-        print -- "mismatch:${norm}"
-        return 1
-      fi
-    fi
-    if [[ -n "${REQUIRE_ASNS}" ]]; then
-      local ok_asn=0 allowed
-      for allowed in ${(s:,:)REQUIRE_ASNS}; do
-        allowed="${allowed// /}"
-        allowed="$(print -- "${allowed}" | /usr/bin/tr '[:lower:]' '[:upper:]')"
-        if [[ -n "${allowed}" && "${asn}" == "${allowed}" ]]; then
-          ok_asn=1
-          break
-        fi
-      done
-      if [[ "${ok_asn}" != "1" ]]; then
-        print -- "mismatch:${norm}"
-        return 1
-      fi
-    fi
+
     print -- "${norm}"
     return 0
   done
@@ -242,7 +293,7 @@ if ! wg_connected; then
   log "UNSAFE: WireGuard '${WG_TUNNEL_NAME}' not connected"
   mark_unsafe
   if [[ "${previous_state}" != "unsafe" ]]; then
-    notify "Istanbul Kill Switch" "WireGuard قطع است — Claude/Brave مسدود شدند"
+    notify "Istanbul Kill Switch" "WireGuard down — Claude/Brave blocked"
   fi
   exit 0
 fi
@@ -255,7 +306,7 @@ if [[ "${check_rc}" -eq 0 ]]; then
   log "SAFE: ${geo}"
   mark_safe "${geo}"
   if [[ "${previous_state}" != "safe" ]]; then
-    notify "Istanbul Kill Switch" "خروجی استانبول تأیید شد — Claude/Brave آزادند"
+    notify "Kill Switch" "Safe exit verified (${geo%%|*}) — Claude/Brave allowed"
   fi
   exit 0
 fi
@@ -268,10 +319,10 @@ if [[ "${check_rc}" -eq 2 ]]; then
     mark_safe "${cached:-cached}"
     exit 0
   fi
-  log "UNSAFE: geo API unavailable and no fresh Istanbul cache"
+  log "UNSAFE: geo API unavailable and no fresh cache"
   mark_unsafe
   if [[ "${previous_state}" != "unsafe" ]]; then
-    notify "Istanbul Kill Switch" "چک IP موقتاً از کار افتاد — مسدود شد"
+    notify "Kill Switch" "IP check unavailable — blocked"
   fi
   exit 0
 fi
@@ -280,6 +331,6 @@ fi
 log "UNSAFE: ${geo}"
 mark_unsafe
 if [[ "${previous_state}" != "unsafe" ]]; then
-  notify "Istanbul Kill Switch" "IP استانبول نیست — Claude/Brave مسدود شدند"
+  notify "Kill Switch" "Exit not in allowed locations/IPs — Claude/Brave blocked"
 fi
 exit 0

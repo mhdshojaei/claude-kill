@@ -58,6 +58,15 @@ cat > "${PLIST_DST}" <<EOF
   <integer>${interval}</integer>
   <key>RunAtLoad</key>
   <true/>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>LANG</key>
+    <string>en_US.UTF-8</string>
+    <key>LC_ALL</key>
+    <string>en_US.UTF-8</string>
+    <key>PATH</key>
+    <string>/usr/bin:/bin:/usr/sbin:/sbin</string>
+  </dict>
   <key>StandardOutPath</key>
   <string>${HOME}/Library/Logs/claude-istanbul-killswitch.stdout.log</string>
   <key>StandardErrorPath</key>
@@ -120,4 +129,5 @@ print ""
 print "state=$(/bin/cat "${HOME}/Library/Application Support/claude-istanbul-killswitch/state" 2>/dev/null || print unknown)"
 print ""
 print "تمام. وضعیت: ${ROOT_DIR}/bin/status.sh"
+print "داشبورد گرافیکی (UI): ${ROOT_DIR}/bin/dashboard.sh"
 print "لاگ:     tail -f ~/Library/Logs/claude-istanbul-killswitch.log"

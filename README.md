@@ -1,172 +1,102 @@
-# Claude ↔ Istanbul Kill Switch
+# Claude Kill Switch (macOS)
 
-بلاک کامل ترافیک **Claude** و **Brave Browser** روی macOS مگر وقتی:
+بلاک هوشمند و کامل ترافیک **Claude** و **Brave Browser** روی macOS بر اساس لوکیشن خروجی و IP، مگر وقتی که:
 
 1. تونل **WireGuard** وصل باشد، و
-2. IP خروجی عمومی واقعاً **Istanbul / TR** باشد (نه فقط سرور میانی ایران).
+2. IP خروجی عمومی یکی از **کشورها/شهرهای مجاز** (مثلاً امارات، ترکیه و...) یا **IP اختصاصی/سرور شما** باشد.
 
-اگر WireGuard قطع باشد، یا VPN بالا باشد ولی خروجی استانبول نباشد → Claude و Brave بسته می‌شوند و (اختیاری) با **Little Snitch** شبکه‌شان Deny می‌شود.
+اگر WireGuard قطع باشد یا خروجی خارج از لوکیشن‌ها/IPهای تایید شده باشد → Claude و Brave بسته می‌شوند و شبکه‌شان با **Little Snitch** مسدود (Deny) می‌شود.
 
-> نیازها: macOS · WireGuard.app · (پیشنهادی) Little Snitch 6+ · دسترسی ادمین برای sudoers
+> نیازمندی‌ها: macOS · WireGuard.app · (اختیاری ولی پیشنهادی) Little Snitch 6+ · دسترسی Admin برای راه‌اندازی اولیه
 
 ---
 
-## نصب سریع روی سیستم جدید
+## ۱. نصب سریع روی سیستم جدید
+
+ترمینال را باز کنید و دستورات زیر را وارد کنید:
 
 ```bash
 git clone https://github.com/mhdshojaei/claude-kill.git
-cd claude-istanbul-killswitch
+cd claude-kill
 chmod +x bin/*.sh
 ./bin/install.sh
 ```
 
-اسکریپت نصب این کارها را می‌کند:
+### اسکریپت نصب چه کارهایی انجام می‌دهد؟
+- نام تونل‌های فعال WireGuard مک شما را نمایش داده و نام تونل مورد نظرتان را می‌پرسد.
+- سرویس پس‌زمینه سیستم (`LaunchAgent`) را ثبت می‌کند تا وضعیت را هر ۱۰ ثانیه بررسی کند.
+- در صورت وجود Little Snitch، راهنمایی تصویری و ایجاد دسترسی امن بدون پسورد (`sudoers`) را انجام می‌دهد.
 
-- `config.env` را از نمونه می‌سازد و نام تونل WireGuard را می‌پرسد
-- LaunchAgent را هر ۱۰ ثانیه ثبت می‌کند
-- راهنمای Little Snitch را نشان می‌دهد
-- (اختیاری) sudoers محدود فقط برای باینری `littlesnitch` نصب می‌کند
+---
 
-بعد از نصب:
+## ۲. داشبورد مدیریت گرافیکی (Web UI Dashboard)
+
+برای راحتی کامل، یک پنل گرافیکی با یک کلیک در مرورگر در دسترس است:
 
 ```bash
+./bin/dashboard.sh
+```
+یا باز کردن آدرس زیر در مرورگر:
+👉 **`http://127.0.0.1:54321`**
+
+### امکانات داشبورد:
+- **کلیدهای سریع کشورها:** فعال یا غیرفعال کردن یک کلیک برای 🇹🇷 ترکیه، 🇦🇪 امارات، 🇩🇪 آلمان، 🇳🇱 هلند، 🇺🇸 آمریکا و 🇬🇧 انگلیس.
+- **تایید داینامیک تمام شهرها:** وقتی کشوری انتخاب می‌شود، تمام شهرها و دیتاسنترهای آن کشور (دبی، فجیره، ابوظبی، استانبول و...) بدون نیاز به وارد کردن تک‌تک شهرها مجاز هستند.
+- **لیست سفید IP اختصاصی (IP Allowlist):** وارد کردن IP سرور یا رنج‌های CIDR تکی (مثلاً `45.86.228.32` یا `194.26.192.0/24`) تا بلافاصله تایید شوند.
+- **تست و بررسی آنی (Instant Check):** دکمه بررسی لحظه‌ای وضعیت بدون معطلی.
+- **مشاهده زنده وضعیت و لاگ‌ها:** وضعیت اتصال WireGuard، آی‌پی فعلی، لوکیشن شناسایی شده و خطاهای شبکه.
+
+---
+
+## ۳. بررسی وضعیت و مانیتورینگ از طریق ترمینال
+
+```bash
+# مشاهده وضعیت کامل اتصالات و تنظیمات
 ./bin/status.sh
+
+# مشاهده لاگ‌های زنده سیستم
 tail -f ~/Library/Logs/claude-istanbul-killswitch.log
 ```
 
 ---
 
-## پیش‌نیازها
+## ۴. تنظیمات دستی (`config.env`)
 
-| ابزار | چرا |
-|---|---|
-| [WireGuard](https://www.wireguard.com/install/) | تونل VPN |
-| [Claude.app](https://claude.ai/download) | اپ محافظت‌شده |
-| [Brave Browser](https://brave.com/) | مرورگر محافظت‌شده |
-| [Little Snitch 6+](https://www.obdev.at/products/littlesnitch/) | بلاک سخت شبکه (پیشنهادی) |
-| `curl` + `python3` | چک IP (روی macOS معمولاً هست) |
+تمام تنظیمات داشبورد در فایل `config.env` ذخیره می‌شوند که به‌صورت دستی نیز قابل ویرایش است:
 
-نام تونل WireGuard را از خود اپ یا این دستور بگیر:
-
-```bash
-scutil --nc list | grep -i wireguard
-```
-
----
-
-## تنظیمات (`config.env`)
-
-بعد از `install.sh` فایل `config.env` ساخته می‌شود:
-
-| متغیر | معنی | نمونه |
+| متغیر | توضیح | مقدار نمونه |
 |---|---|---|
-| `WG_TUNNEL_NAME` | نام تونل در WireGuard.app | `nima` |
-| `REQUIRE_COUNTRY` | کد کشور خروجی | `TR` |
-| `REQUIRE_CITY` | شهر خروجی | `Istanbul` |
-| `REQUIRE_ASNS` | ASN مجاز (خالی = چک نشود) | `AS44382` |
-| `QUIT_CLAUDE_WHEN_UNSAFE` | بستن Claude وقتی unsafe | `1` |
-| `QUIT_BRAVE_WHEN_UNSAFE` | بستن Brave وقتی unsafe | `1` |
-| `USE_LITTLE_SNITCH` | روشن/خاموش کردن Rule Group | `1` |
-| `LS_RULE_GROUP` | نام گروه در Little Snitch | `Claude Kill Switch` |
-
-اگر دیتاسنتر عوض شد ولی هنوز استانبول است، `REQUIRE_ASNS` را خالی بگذار یا ASN جدید را بگذار.
+| `WG_TUNNEL_NAME` | نام کانکشن در WireGuard | `paliz-claude` |
+| `REQUIRE_COUNTRIES` | کدهای کشورهای مجاز (با کاما) | `TR,AE` |
+| `REQUIRE_CITIES` | فیلتر شهرهای خاص (خالی = تمام شهرهای آن کشورها مجازند) | *(خالی)* |
+| `ALLOWED_IPS` | آی‌پی‌ها یا رنج‌های CIDR اختصاصی مجاز | `45.86.228.32, 1.2.3.0/24` |
+| `REQUIRE_ASNS` | شماره ASN مجاز (خالی = چک نشود) | `AS44382` |
+| `QUIT_CLAUDE_WHEN_UNSAFE` | بستن برنامه Claude در حالت ناامن (1/0) | `1` |
+| `QUIT_BRAVE_WHEN_UNSAFE` | بستن Brave در حالت ناامن (1/0) | `1` |
+| `USE_LITTLE_SNITCH` | فعال‌سازی بلاک سخت شبکه Little Snitch | `1` |
 
 ---
 
-## Little Snitch (بلاک شبکه)
+## ۵. راهنمای Little Snitch (بلاک شبکه در سطح کرنل)
 
-بدون این هم اسکریپت Claude را می‌بندد؛ با این، حتی یک درخواست شبکه هم رد نمی‌شود.
+این ابزار حتی قبل از اینکه برنامه‌ای بسته‌بشود، امکان ارسال یک بایت پکت را در حالت نامطمئن مسدود می‌کند:
 
-### ۱) اجازه Command Line
-
-Little Snitch → **Settings (⌘,)** → **Security** → **Allow access via Terminal** را روشن کن.
-
-### ۲) ساخت Rule Group
-
-1. پنجره **Rules** → کنار **Rule Groups** روی **＋** → **Local Rule Group…**
-2. نام دقیقاً: `Claude Kill Switch`
-3. قوانین Deny را اضافه کن — آسان‌ترین راه:
-
-   **File → Import Rules…** و این فایل را انتخاب کن:
-
-   `little-snitch/Claude Kill Switch.lsrules`
-
-4. گروه را **Disabled** بگذار (اسکریپت وقتی unsafe شد Enable می‌کند).
-
-### ۳) sudo بدون پسورد (برای LaunchAgent)
-
-`install.sh` می‌تواند این را بسازد، یا دستی:
-
-```bash
-LS="/Applications/Little Snitch.app/Contents/Components/littlesnitch"
-echo "$(whoami) ALL=(root) NOPASSWD: $LS" | sudo tee /etc/sudoers.d/claude-killswitch-ls
-sudo chmod 440 /etc/sudoers.d/claude-killswitch-ls
-sudo visudo -cf /etc/sudoers.d/claude-killswitch-ls
-```
-
-سپس در `config.env`:
-
-```bash
-USE_LITTLE_SNITCH=1
-```
-
-تست:
-
-```bash
-sudo -n "$LS" rulegroup --enable "Claude Kill Switch"
-sudo -n "$LS" rulegroup --disable "Claude Kill Switch"
-sudo -n "$LS" rulegroup
-```
+۱. در Little Snitch به مسیر **Settings (⌘,)** → **Security** بروید و گزینه **Allow access via Terminal** را فعال کنید.  
+۲. پنجره **Rules** را باز کنید، روی `+` کلیک کرده و **Local Rule Group…** با نام دقیق `Claude Kill Switch` بسازید.  
+۳. از منوی **File → Import Rules…** فایل زیر را انتخاب کنید:  
+   `little-snitch/Claude Kill Switch.lsrules`  
+۴. گروه را در حالت **Disabled** رها کنید (اسکریپت در مواقع ناامن خودش آن را فعال می‌کند).  
 
 ---
 
-## تست صحت
+## ۶. حذف و پاکسازی کامل
 
-1. WireGuard را **Disconnect** کن → نوتیف «قطع است» · Claude و Brave بسته می‌شوند · گروه LS روشن می‌شود.
-2. دوباره وصل کن با خروجی استانبول → نوتیف «آزاد است» · گروه LS خاموش می‌شود.
-3. وضعیت:
-
-```bash
-./bin/status.sh
-curl -4 https://ipinfo.io/json
-```
-
-باید `city: Istanbul` و `country: TR` باشد.
-
----
-
-## حذف
-
+برای حذف کامل سرویس پس‌زمینه و لاگ‌ها:
 ```bash
 ./bin/uninstall.sh
 ```
 
-LaunchAgent، sudoers، و (اختیاری) state/log را برمی‌دارد. Rule Group داخل Little Snitch را دستی پاک کن اگر خواستی.
-
----
-
-## ساختار پروژه
-
-```
-bin/enforce.sh          # منطق اصلی (هر ۱۰ثانیه)
-bin/status.sh           # وضعیت فعلی
-bin/install.sh          # نصب روی مک جدید
-bin/uninstall.sh        # حذف
-config.env.example      # نمونه تنظیمات
-little-snitch/*.lsrules # قوانین قابل Import
-launchd/*.plist.template
-```
-
----
-
-## نکته امنیتی
-
-- پسورد sudo / مک را هیچ‌وقت داخل ریپو یا چت نگذار.
-- فایل `/etc/sudoers.d/claude-killswitch-ls` فقط به باینری `littlesnitch` اجازه می‌دهد، نه به کل سیستم.
-- لاگ: `~/Library/Logs/claude-istanbul-killswitch.log`
-
 ---
 
 ## مجوز
-
-MIT — استفاده آزاد برای شخصی‌سازی روی مک خودت.
+MIT License
